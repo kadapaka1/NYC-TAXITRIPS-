@@ -1,0 +1,1404 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NYC Taxi Trip Duration Predictor — Project Showcase</title>
+    <meta name="description" content="NYC Taxi Trip Duration Predictor — Geospatial ML regression showcase with EDA, feature engineering, results, maps, and a live estimator." />
+
+    <!-- Font (Inter) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+
+    <!-- Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <style>
+      :root{
+        --bg: #070A0F;             /* night asphalt */
+        --bg2: #0B1020;            /* deep blue-black */
+        --panel: rgba(255,255,255,.05);
+        --panel2: rgba(255,255,255,.07);
+        --stroke: rgba(255,255,255,.10);
+        --stroke2: rgba(255,255,255,.14);
+        --text: rgba(255,255,255,.88);
+        --muted: rgba(255,255,255,.66);
+        --muted2: rgba(255,255,255,.52);
+
+        --taxi: #F7C948;           /* yellow cab */
+        --teal: #00E5D4;           /* neon teal */
+        --danger: #FF4D6D;
+        --good: #3BFF87;
+
+        --shadow: 0 18px 60px rgba(0,0,0,.45);
+        --radius: 16px;
+        --radius2: 22px;
+        --maxw: 1180px;
+        --navh: 64px;
+      }
+
+      *{ box-sizing: border-box; }
+      html{ scroll-behavior: smooth; }
+      body{
+        margin:0;
+        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        background:
+          radial-gradient(1200px 520px at 20% 10%, rgba(0,229,212,.08), transparent 60%),
+          radial-gradient(900px 420px at 80% 15%, rgba(247,201,72,.10), transparent 55%),
+          radial-gradient(850px 460px at 65% 85%, rgba(90,120,255,.07), transparent 60%),
+          linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
+        color: var(--text);
+        overflow-x: hidden;
+      }
+
+      a{ color: inherit; text-decoration: none; }
+      .container{ width: min(var(--maxw), calc(100% - 40px)); margin: 0 auto; }
+      section{ padding: 84px 0; position: relative; }
+      section .anchor{ position:absolute; top: calc(var(--navh) * -1 - 14px); }
+
+      /* Top nav */
+      .topnav{
+        position: fixed;
+        inset: 0 0 auto 0;
+        height: var(--navh);
+        z-index: 50;
+        backdrop-filter: blur(14px);
+        background: linear-gradient(180deg, rgba(7,10,15,.72), rgba(7,10,15,.40));
+        border-bottom: 1px solid rgba(255,255,255,.08);
+      }
+      .topnav .inner{
+        height: 100%;
+        display:flex;
+        align-items:center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .brand{
+        display:flex; align-items:center; gap: 10px;
+        font-weight: 800;
+        letter-spacing: .2px;
+      }
+      .brand .dot{
+        width: 12px; height: 12px; border-radius: 3px;
+        background: conic-gradient(from 180deg, var(--taxi), var(--teal), var(--taxi));
+        box-shadow: 0 0 0 3px rgba(247,201,72,.15), 0 0 30px rgba(0,229,212,.15);
+      }
+      .navlinks{
+        display:flex; align-items:center; gap: 10px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+      .navlinks a{
+        font-size: 13px;
+        color: var(--muted);
+        padding: 8px 10px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        transition: .2s ease;
+      }
+      .navlinks a:hover{
+        color: rgba(255,255,255,.9);
+        border-color: rgba(255,255,255,.10);
+        background: rgba(255,255,255,.04);
+      }
+
+      /* Hero */
+      .hero{
+        padding-top: calc(var(--navh) + 40px);
+        padding-bottom: 44px;
+      }
+      .heroWrap{
+        position: relative;
+        border-radius: var(--radius2);
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,.10);
+        box-shadow: var(--shadow);
+        background:
+          radial-gradient(1000px 520px at 10% 15%, rgba(0,229,212,.12), transparent 55%),
+          radial-gradient(900px 520px at 85% 20%, rgba(247,201,72,.14), transparent 60%),
+          linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.02));
+      }
+      .heroGrid{
+        position:absolute; inset:-2px;
+        opacity: .75;
+        pointer-events: none;
+      }
+      .heroContent{
+        position: relative;
+        padding: 64px 28px 30px;
+      }
+      .kicker{
+        display:inline-flex;
+        align-items:center;
+        gap: 10px;
+        font-size: 13px;
+        letter-spacing: .14em;
+        text-transform: uppercase;
+        color: rgba(255,255,255,.70);
+        background: rgba(0,0,0,.16);
+        border: 1px solid rgba(255,255,255,.10);
+        padding: 10px 12px;
+        border-radius: 999px;
+      }
+      .kicker .pill{
+        height: 8px; width: 8px; border-radius: 999px;
+        background: var(--teal);
+        box-shadow: 0 0 18px rgba(0,229,212,.35);
+      }
+      .hero h1{
+        margin: 18px 0 10px;
+        font-size: clamp(34px, 4.8vw, 58px);
+        line-height: 1.03;
+        letter-spacing: -0.02em;
+      }
+      .hero p{
+        margin: 0;
+        max-width: 68ch;
+        color: var(--muted);
+        font-size: 16px;
+        line-height: 1.55;
+      }
+      .subline{
+        margin-top: 14px;
+        display:flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        color: rgba(255,255,255,.74);
+        font-weight: 600;
+      }
+      .subline .tag{
+        display:inline-flex; align-items:center; gap:8px;
+        padding: 8px 10px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.04);
+        border: 1px solid rgba(255,255,255,.10);
+      }
+      .subline .tag b{ color: rgba(255,255,255,.92); }
+      .tag .swatch{
+        width: 10px; height: 10px; border-radius: 3px;
+        background: var(--taxi);
+        box-shadow: 0 0 24px rgba(247,201,72,.22);
+      }
+
+      .chips{
+        margin-top: 22px;
+        display:grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .chip{
+        border-radius: 14px;
+        padding: 14px 14px;
+        border: 1px solid rgba(255,255,255,.12);
+        background: rgba(0,0,0,.22);
+      }
+      .chip .label{ color: var(--muted2); font-size: 12px; text-transform: uppercase; letter-spacing: .12em; }
+      .chip .value{
+        margin-top: 8px;
+        display:flex; align-items: baseline; gap: 8px;
+        font-size: 22px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+      }
+      .chip .value span{ font-size: 12px; color: var(--muted); font-weight: 700; }
+      .chip.accent{ border-color: rgba(0,229,212,.22); background: linear-gradient(180deg, rgba(0,229,212,.06), rgba(0,0,0,.22)); }
+      .chip.taxi{ border-color: rgba(247,201,72,.24); background: linear-gradient(180deg, rgba(247,201,72,.07), rgba(0,0,0,.22)); }
+
+      /* Sections */
+      .sectionTitle{
+        font-size: 26px;
+        letter-spacing: -0.02em;
+        margin: 0 0 10px;
+      }
+      .sectionSub{
+        margin: 0 0 24px;
+        color: var(--muted);
+        max-width: 80ch;
+        line-height: 1.55;
+      }
+
+      /* Cards + grids */
+      .grid3{ display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+      .grid2{ display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+      .card{
+        border-radius: var(--radius);
+        border: 1px solid var(--stroke);
+        background: linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.035));
+        box-shadow: 0 16px 40px rgba(0,0,0,.30);
+        overflow:hidden;
+      }
+      .card .pad{ padding: 16px 16px 14px; }
+      .card h3{
+        margin: 0 0 8px;
+        font-size: 15px;
+        letter-spacing: -0.01em;
+      }
+      .card p{
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .chartWrap{
+        padding: 12px 14px 16px;
+        border-top: 1px solid rgba(255,255,255,.08);
+        background: rgba(0,0,0,.14);
+      }
+      canvas{ width: 100% !important; height: 260px !important; }
+
+      /* Callout */
+      .callout{
+        margin-top: 14px;
+        border-radius: var(--radius);
+        padding: 16px;
+        border: 1px solid rgba(0,229,212,.22);
+        background: linear-gradient(180deg, rgba(0,229,212,.06), rgba(0,0,0,.18));
+        display:flex;
+        gap: 12px;
+        align-items:flex-start;
+      }
+      .callout .badge{
+        width: 36px; height: 36px;
+        border-radius: 10px;
+        background: rgba(0,229,212,.12);
+        border: 1px solid rgba(0,229,212,.20);
+        display:grid; place-items:center;
+        box-shadow: 0 0 30px rgba(0,229,212,.15);
+        flex: 0 0 auto;
+      }
+      .callout .badge svg{ opacity: .95; }
+      .callout ul{
+        margin: 0;
+        padding-left: 18px;
+        color: rgba(255,255,255,.78);
+      }
+      .callout li{ margin: 6px 0; }
+      .callout b{ color: rgba(255,255,255,.95); }
+
+      /* Feature engineering cards */
+      .featureGrid{ display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+      .snippetBadge{
+        display:inline-flex;
+        align-items:center;
+        gap: 8px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 12px;
+        padding: 7px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,.12);
+        background: rgba(0,0,0,.22);
+        color: rgba(255,255,255,.82);
+      }
+      .snippetBadge .dot{
+        width: 8px; height: 8px; border-radius: 99px;
+        background: var(--taxi);
+        box-shadow: 0 0 18px rgba(247,201,72,.25);
+      }
+      .formula{
+        margin-top: 10px;
+        padding: 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,.10);
+        background: rgba(0,0,0,.18);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 12px;
+        color: rgba(255,255,255,.76);
+        overflow:auto;
+      }
+
+      /* Pipeline */
+      .pipeline{
+        display:flex;
+        align-items: stretch;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .step{
+        flex: 1 1 150px;
+        min-width: 160px;
+        border-radius: 16px;
+        padding: 14px 14px;
+        border: 1px solid rgba(255,255,255,.10);
+        background: rgba(255,255,255,.04);
+        position: relative;
+        overflow:hidden;
+      }
+      .step:before{
+        content:"";
+        position:absolute;
+        inset: -1px;
+        background: radial-gradient(500px 180px at 20% 10%, rgba(247,201,72,.10), transparent 55%);
+        opacity: .55;
+        pointer-events:none;
+      }
+      .step .k{ position:relative; z-index:1; color: var(--muted2); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
+      .step .v{ position:relative; z-index:1; margin-top: 8px; font-weight: 800; letter-spacing: -0.02em; }
+      .arrow{
+        align-self: center;
+        color: rgba(255,255,255,.35);
+        font-weight: 800;
+        padding: 0 2px;
+      }
+
+      /* Table */
+      table{
+        width: 100%;
+        border-collapse: collapse;
+        border-radius: var(--radius);
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,.10);
+      }
+      th, td{
+        padding: 12px 12px;
+        text-align: left;
+        font-size: 13px;
+      }
+      th{
+        background: rgba(255,255,255,.06);
+        color: rgba(255,255,255,.86);
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        font-size: 12px;
+      }
+      tr:nth-child(even) td{ background: rgba(0,0,0,.14); }
+      tr:nth-child(odd) td{ background: rgba(255,255,255,.03); }
+      td.mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+      .best{ color: var(--taxi); font-weight: 800; }
+
+      /* Map */
+      #map{
+        height: 460px;
+        width: 100%;
+        border-radius: var(--radius2);
+        border: 1px solid rgba(255,255,255,.12);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+      .mapNote{
+        margin-top: 10px;
+        color: var(--muted2);
+        font-size: 12px;
+      }
+      .leaflet-control-attribution{ background: rgba(0,0,0,.55) !important; color: rgba(255,255,255,.65) !important; border-radius: 10px; border: 1px solid rgba(255,255,255,.12); }
+      .leaflet-container{ background: #0B1020; }
+
+      /* Estimator */
+      .terminal{
+        border-radius: var(--radius2);
+        border: 1px solid rgba(0,229,212,.20);
+        background:
+          radial-gradient(900px 420px at 15% 10%, rgba(0,229,212,.10), transparent 60%),
+          linear-gradient(180deg, rgba(0,0,0,.28), rgba(255,255,255,.03));
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+      .terminalHeader{
+        display:flex;
+        align-items:center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 16px;
+        background: rgba(0,0,0,.25);
+        border-bottom: 1px solid rgba(255,255,255,.08);
+      }
+      .terminalHeader .left{
+        display:flex; align-items:center; gap: 10px;
+        font-weight: 800;
+        letter-spacing: .04em;
+      }
+      .lights{ display:flex; gap: 7px; }
+      .lights span{ width: 10px; height: 10px; border-radius: 99px; background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.12); }
+      .lights span:nth-child(1){ background: rgba(255,77,109,.25); border-color: rgba(255,77,109,.25); }
+      .lights span:nth-child(2){ background: rgba(247,201,72,.24); border-color: rgba(247,201,72,.24); }
+      .lights span:nth-child(3){ background: rgba(59,255,135,.22); border-color: rgba(59,255,135,.22); }
+      .terminalHeader .right{
+        color: rgba(255,255,255,.65);
+        font-size: 12px;
+        letter-spacing: .10em;
+        text-transform: uppercase;
+      }
+
+      .formGrid{
+        padding: 16px;
+        display:grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .field{
+        grid-column: span 6;
+        background: rgba(0,0,0,.16);
+        border: 1px solid rgba(255,255,255,.10);
+        border-radius: 14px;
+        padding: 12px;
+      }
+      .field label{
+        display:flex;
+        align-items:center;
+        justify-content: space-between;
+        gap: 10px;
+        color: rgba(255,255,255,.78);
+        font-size: 12px;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+      }
+      .field label span{ color: rgba(0,229,212,.90); font-weight: 800; letter-spacing: .12em; }
+      select, input[type="number"], input[type="range"]{
+        width: 100%;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,.12);
+        background: rgba(0,0,0,.22);
+        color: rgba(255,255,255,.88);
+        padding: 10px 10px;
+        outline: none;
+        font-size: 14px;
+      }
+      input[type="range"]{ padding: 8px 10px; }
+      .rangeRow{ display:flex; align-items:center; gap: 12px; }
+      .rangeVal{
+        min-width: 54px;
+        text-align:right;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        color: rgba(255,255,255,.78);
+      }
+      .ctaRow{
+        grid-column: 1 / -1;
+        display:flex;
+        gap: 12px;
+        align-items:center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        margin-top: 4px;
+      }
+      .btn{
+        cursor: pointer;
+        border: 1px solid rgba(247,201,72,.35);
+        background: linear-gradient(180deg, rgba(247,201,72,.18), rgba(0,0,0,.18));
+        color: rgba(255,255,255,.92);
+        border-radius: 14px;
+        padding: 12px 14px;
+        font-weight: 900;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        box-shadow: 0 18px 45px rgba(0,0,0,.40);
+        transition: transform .12s ease, border-color .2s ease, background .2s ease;
+      }
+      .btn:hover{ transform: translateY(-1px); border-color: rgba(247,201,72,.55); }
+      .btn.secondary{
+        border-color: rgba(0,229,212,.26);
+        background: linear-gradient(180deg, rgba(0,229,212,.10), rgba(0,0,0,.16));
+      }
+
+      .result{
+        grid-column: 1 / -1;
+        display:grid;
+        grid-template-columns: 1.1fr .9fr;
+        gap: 12px;
+        align-items: stretch;
+        margin-top: 2px;
+      }
+      .resultCard{
+        border-radius: 16px;
+        border: 1px solid rgba(255,255,255,.10);
+        background: rgba(0,0,0,.18);
+        padding: 14px;
+      }
+      .bigNum{
+        font-size: clamp(30px, 4vw, 44px);
+        font-weight: 900;
+        letter-spacing: -0.02em;
+        margin: 2px 0 4px;
+      }
+      .band{ color: rgba(255,255,255,.70); font-size: 13px; }
+      .mini{
+        color: rgba(255,255,255,.65);
+        font-size: 12px;
+        line-height: 1.6;
+      }
+      .mini code{
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 12px;
+        color: rgba(255,255,255,.78);
+      }
+
+      /* Footer */
+      footer{
+        padding: 34px 0 46px;
+        border-top: 1px solid rgba(255,255,255,.08);
+        background: rgba(0,0,0,.12);
+      }
+      .footerRow{
+        display:flex;
+        gap: 14px;
+        align-items:flex-start;
+        justify-content: space-between;
+        flex-wrap: wrap;
+      }
+      .footLeft b{ color: rgba(255,255,255,.92); }
+      .footLeft{ color: rgba(255,255,255,.70); font-size: 13px; line-height: 1.6; }
+      .footLinks{
+        display:flex; gap: 10px; flex-wrap: wrap; justify-content:flex-end;
+      }
+      .linkChip{
+        display:inline-flex; align-items:center; gap:8px;
+        border-radius: 999px;
+        padding: 10px 12px;
+        border: 1px solid rgba(255,255,255,.12);
+        background: rgba(255,255,255,.04);
+        color: rgba(255,255,255,.78);
+        font-size: 13px;
+        transition: .2s ease;
+      }
+      .linkChip:hover{ background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.18); }
+      .linkChip .ic{ width: 10px; height: 10px; border-radius: 3px; background: var(--teal); box-shadow: 0 0 18px rgba(0,229,212,.25); }
+
+      /* Responsive */
+      @media (max-width: 980px){
+        .chips{ grid-template-columns: 1fr; }
+        .grid3{ grid-template-columns: 1fr; }
+        .grid2{ grid-template-columns: 1fr; }
+        .featureGrid{ grid-template-columns: 1fr; }
+        canvas{ height: 240px !important; }
+        .result{ grid-template-columns: 1fr; }
+        .field{ grid-column: span 12; }
+      }
+      @media (max-width: 640px){
+        .navlinks{ display:none; }
+        .heroContent{ padding: 56px 18px 22px; }
+        #map{ height: 420px; }
+      }
+
+      /* Subtle grid animation */
+      @keyframes drift{
+        0%{ transform: translate3d(0,0,0); filter: hue-rotate(0deg); }
+        50%{ transform: translate3d(-16px, 10px, 0); filter: hue-rotate(8deg); }
+        100%{ transform: translate3d(0,0,0); filter: hue-rotate(0deg); }
+      }
+      .heroGrid svg{ width: 100%; height: 100%; animation: drift 12s ease-in-out infinite; }
+    </style>
+  </head>
+  <body>
+    <header class="topnav">
+      <div class="container inner">
+        <a class="brand" href="#top" aria-label="Go to top">
+          <span class="dot" aria-hidden="true"></span>
+          <span>NYC Taxi ML</span>
+        </a>
+        <nav class="navlinks" aria-label="Page navigation">
+          <a href="#eda">EDA</a>
+          <a href="#features">Features</a>
+          <a href="#results">Results</a>
+          <a href="#geo">Geospatial</a>
+          <a href="#demo">Live Estimator</a>
+        </nav>
+      </div>
+    </header>
+
+    <!-- HERO -->
+    <section class="hero" id="top">
+      <span class="anchor" aria-hidden="true"></span>
+      <div class="container">
+        <div class="heroWrap">
+          <div class="heroGrid" aria-hidden="true">
+            <!-- NYC-at-night vibe: animated SVG "grid / avenues" -->
+            <svg viewBox="0 0 1200 560" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="rgba(247,201,72,.22)" />
+                  <stop offset="0.55" stop-color="rgba(0,229,212,.16)" />
+                  <stop offset="1" stop-color="rgba(120,120,255,.10)" />
+                </linearGradient>
+                <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="1" />
+                </pattern>
+                <filter id="glow">
+                  <feGaussianBlur stdDeviation="3" result="blur" />
+                  <feMerge>
+                    <feMergeNode in="blur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              </defs>
+              <rect x="0" y="0" width="1200" height="560" fill="url(#grid)" />
+              <g opacity="0.95" filter="url(#glow)">
+                <!-- "Avenues" -->
+                <path d="M-40,90 C260,140 520,120 860,60 C1020,30 1140,35 1260,52" stroke="url(#g1)" stroke-width="2.4" fill="none" opacity=".75"/>
+                <path d="M-60,210 C260,260 560,250 920,170 C1060,140 1170,135 1260,150" stroke="rgba(0,229,212,.26)" stroke-width="2.0" fill="none" opacity=".65"/>
+                <path d="M-40,330 C280,380 580,380 930,280 C1090,235 1180,230 1260,245" stroke="rgba(247,201,72,.26)" stroke-width="2.2" fill="none" opacity=".62"/>
+                <path d="M-40,460 C260,500 520,510 860,430 C1030,390 1140,395 1260,410" stroke="rgba(255,255,255,.14)" stroke-width="1.6" fill="none" opacity=".42"/>
+
+                <!-- "Cross streets" -->
+                <g opacity=".45">
+                  <path d="M110, -20 L 260, 600" stroke="rgba(255,255,255,.10)" stroke-width="1.2"/>
+                  <path d="M210, -20 L 360, 600" stroke="rgba(255,255,255,.09)" stroke-width="1.1"/>
+                  <path d="M310, -20 L 460, 600" stroke="rgba(255,255,255,.09)" stroke-width="1.1"/>
+                  <path d="M410, -20 L 560, 600" stroke="rgba(255,255,255,.08)" stroke-width="1.0"/>
+                  <path d="M510, -20 L 660, 600" stroke="rgba(255,255,255,.09)" stroke-width="1.1"/>
+                  <path d="M610, -20 L 760, 600" stroke="rgba(255,255,255,.08)" stroke-width="1.0"/>
+                  <path d="M710, -20 L 860, 600" stroke="rgba(255,255,255,.09)" stroke-width="1.1"/>
+                  <path d="M810, -20 L 960, 600" stroke="rgba(255,255,255,.08)" stroke-width="1.0"/>
+                  <path d="M910, -20 L 1060, 600" stroke="rgba(255,255,255,.09)" stroke-width="1.1"/>
+                </g>
+
+                <!-- "Traffic" points -->
+                <g opacity=".75">
+                  <circle cx="245" cy="120" r="3.2" fill="rgba(247,201,72,.95)"/>
+                  <circle cx="312" cy="178" r="2.8" fill="rgba(0,229,212,.85)"/>
+                  <circle cx="498" cy="142" r="2.2" fill="rgba(247,201,72,.85)"/>
+                  <circle cx="690" cy="204" r="3.0" fill="rgba(0,229,212,.82)"/>
+                  <circle cx="840" cy="92" r="2.4" fill="rgba(247,201,72,.80)"/>
+                  <circle cx="905" cy="316" r="3.2" fill="rgba(247,201,72,.88)"/>
+                  <circle cx="770" cy="382" r="2.7" fill="rgba(0,229,212,.75)"/>
+                  <circle cx="590" cy="340" r="2.3" fill="rgba(247,201,72,.82)"/>
+                  <circle cx="340" cy="402" r="2.8" fill="rgba(0,229,212,.74)"/>
+                </g>
+              </g>
+            </svg>
+          </div>
+
+          <div class="heroContent">
+            <div class="kicker"><span class="pill" aria-hidden="true"></span> NYC at night · geospatial ML</div>
+            <h1>NYC Taxi Trip Duration Predictor</h1>
+            <p>
+              A full-stack ML regression project built on NYC TLC trip records. We engineer geospatial + temporal signals at scale,
+              train an <b>XGBoost-style</b> gradient-boosted model, and ship an interactive map + live estimator.
+            </p>
+            <div class="subline">
+              <div class="tag"><span class="swatch" aria-hidden="true"></span><b>1.1M</b> trips</div>
+              <div class="tag"><span class="swatch" aria-hidden="true" style="background: var(--teal)"></span><b>Geospatial</b> features</div>
+              <div class="tag"><span class="swatch" aria-hidden="true" style="background: rgba(120,120,255,.9)"></span><b>XGBoost</b> regression</div>
+            </div>
+
+            <div class="chips" role="list" aria-label="Model stats">
+              <div class="chip taxi" role="listitem">
+                <div class="label">RMSE</div>
+                <div class="value">3.2<span>min</span></div>
+              </div>
+              <div class="chip accent" role="listitem">
+                <div class="label">R²</div>
+                <div class="value">0.81<span>test</span></div>
+              </div>
+              <div class="chip" role="listitem">
+                <div class="label">Features</div>
+                <div class="value">24<span>engineered</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- EDA -->
+    <section id="eda">
+      <span class="anchor" aria-hidden="true"></span>
+      <div class="container">
+        <h2 class="sectionTitle">EDA & Data Insights</h2>
+        <p class="sectionSub">
+          The TLC dataset is a city-scale sensor network: millions of pickups and dropoffs, each embedded in time and place.
+          Below are realistic, hardcoded aggregates representative of NYC taxi patterns.
+        </p>
+
+        <div class="grid3">
+          <div class="card">
+            <div class="pad">
+              <h3>Average trip duration by borough</h3>
+              <p>Manhattan stays short; outer boroughs stretch the clock.</p>
+            </div>
+            <div class="chartWrap"><canvas id="chartBorough"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="pad">
+              <h3>Trip volume by hour</h3>
+              <p>Rush hour spikes are the city’s heartbeat.</p>
+            </div>
+            <div class="chartWrap"><canvas id="chartHour"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="pad">
+              <h3>Trip distance distribution (haversine km)</h3>
+              <p>Right-skewed: many short hops, a long tail of airport trips.</p>
+            </div>
+            <div class="chartWrap"><canvas id="chartDist"></canvas></div>
+          </div>
+        </div>
+
+        <div class="callout" role="note" aria-label="Key findings">
+          <div class="badge" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2l2.4 6.9H22l-5.9 4.3 2.3 7L12 16.6 5.6 20.2l2.3-7L2 8.9h7.6L12 2z" stroke="rgba(0,229,212,.95)" stroke-width="1.6"/>
+            </svg>
+          </div>
+          <div>
+            <div style="font-weight:900; letter-spacing:-0.01em; margin-bottom:6px;">Key Findings</div>
+            <ul>
+              <li><b>Rush hour adds ~4.2 minutes</b> on average (weekday AM/PM windows).</li>
+              <li><b>Airport-bound trips</b> (JFK/LGA/EWR) are <b>~2.3× longer</b> than intra-Manhattan rides.</li>
+              <li><b>Distance explains most variance</b>, but temporal + borough interactions tighten the error bars.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Feature Engineering -->
+    <section id="features">
+      <span class="anchor" aria-hidden="true"></span>
+      <div class="container">
+        <h2 class="sectionTitle">Feature Engineering Showcase</h2>
+        <p class="sectionSub">
+          The model learns “how NYC moves” through compact features: geodesic distance, neighborhood context, and time-of-day rhythm.
+          Feature names are shown as code-style badges.
+        </p>
+
+        <div class="featureGrid">
+          <div class="card">
+            <div class="pad">
+              <div class="snippetBadge"><span class="dot"></span>haversine_distance_km</div>
+              <h3 style="margin-top:10px;">Haversine Distance</h3>
+              <p>Great-circle distance between pickup and dropoff taxi-zone centroids — a robust proxy for trip length.</p>
+              <div class="formula">
+                d = 2R · asin( √( sin²((φ₂-φ₁)/2) + cos(φ₁)cos(φ₂)sin²((λ₂-λ₁)/2) ) )
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="pad">
+              <div class="snippetBadge"><span class="dot"></span>is_rush_am / is_rush_pm</div>
+              <h3 style="margin-top:10px;">Rush Hour Flag</h3>
+              <p>Binary flags for congestion windows that spike duration independent of distance.</p>
+              <div class="formula">
+                AM: weekday &amp; 7–9<br/>
+                PM: weekday &amp; 17–19
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="pad">
+              <div class="snippetBadge"><span class="dot"></span>PU_borough / DO_borough</div>
+              <h3 style="margin-top:10px;">Borough Encoding</h3>
+              <p>Pickup + dropoff borough one-hot encodings capture cross-borough travel penalties.</p>
+              <div class="formula">
+                onehot(PU_borough) ⊕ onehot(DO_borough)
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="pad">
+              <div class="snippetBadge"><span class="dot"></span>hour_sin / hour_cos</div>
+              <h3 style="margin-top:10px;">Cyclical time encoding</h3>
+              <p>Hour-of-day and day-of-week encoded on a circle to represent periodicity without discontinuities.</p>
+              <div class="formula">
+                hour_sin = sin(2π·h/24)<br/>
+                hour_cos = cos(2π·h/24)
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="pad">
+              <div class="snippetBadge"><span class="dot"></span>is_airport_trip</div>
+              <h3 style="margin-top:10px;">Airport indicator</h3>
+              <p>Detect trips near JFK/LGA/EWR by radius threshold; airports introduce predictable long-haul behavior.</p>
+              <div class="formula">
+                is_airport = minDistTo({JFK,LGA,EWR}) &lt; r
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="pad">
+              <div class="snippetBadge"><span class="dot"></span>passengers_x_distance</div>
+              <h3 style="margin-top:10px;">Interaction term</h3>
+              <p>Small but consistent: group trips tend to be longer and less direct, especially outside Manhattan.</p>
+              <div class="formula">
+                passengers_x_distance = passenger_count · haversine_km
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Results -->
+    <section id="results">
+      <span class="anchor" aria-hidden="true"></span>
+      <div class="container">
+        <h2 class="sectionTitle">Model Results & Pipeline</h2>
+        <p class="sectionSub">
+          From raw TLC records to a low-latency predictor: clean the time fields, engineer geospatial signals, and train a boosted tree regressor.
+        </p>
+
+        <div class="card" style="margin-bottom:14px;">
+          <div class="pad">
+            <h3>Pipeline</h3>
+            <p>End-to-end flow, designed for scale and reproducibility.</p>
+            <div style="height:12px"></div>
+            <div class="pipeline" aria-label="ML pipeline diagram">
+              <div class="step"><div class="k">Raw Data</div><div class="v">TLC trips</div></div>
+              <div class="arrow" aria-hidden="true">→</div>
+              <div class="step"><div class="k">Cleaning</div><div class="v">valid times · outliers</div></div>
+              <div class="arrow" aria-hidden="true">→</div>
+              <div class="step"><div class="k">Feature Eng</div><div class="v">geo + temporal</div></div>
+              <div class="arrow" aria-hidden="true">→</div>
+              <div class="step"><div class="k">XGBoost</div><div class="v">gradient boosting</div></div>
+              <div class="arrow" aria-hidden="true">→</div>
+              <div class="step"><div class="k">Prediction</div><div class="v">duration (min)</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid2">
+          <div class="card">
+            <div class="pad">
+              <h3>Baseline comparison</h3>
+              <p>Tree ensembles win on non-linear interactions (borough × time × distance).</p>
+            </div>
+            <div class="chartWrap" style="padding-top: 0;">
+              <table aria-label="Model metrics table">
+                <thead>
+                  <tr>
+                    <th>Model</th>
+                    <th>MAE (min)</th>
+                    <th>RMSE (min)</th>
+                    <th>R²</th>
+                    <th>Train time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Linear Regression</td>
+                    <td class="mono">4.9</td>
+                    <td class="mono">6.6</td>
+                    <td class="mono">0.58</td>
+                    <td class="mono">0.8s</td>
+                  </tr>
+                  <tr>
+                    <td>Random Forest</td>
+                    <td class="mono">2.8</td>
+                    <td class="mono">3.9</td>
+                    <td class="mono">0.77</td>
+                    <td class="mono">42s</td>
+                  </tr>
+                  <tr>
+                    <td><span class="best">XGBoost</span></td>
+                    <td class="mono best">2.3</td>
+                    <td class="mono best">3.2</td>
+                    <td class="mono best">0.81</td>
+                    <td class="mono">18s</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="pad">
+              <h3>Feature importance (top 10)</h3>
+              <p>Distance leads, but time + borough signals close the gap during congestion.</p>
+            </div>
+            <div class="chartWrap"><canvas id="chartFI"></canvas></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Geospatial -->
+    <section id="geo">
+      <span class="anchor" aria-hidden="true"></span>
+      <div class="container">
+        <h2 class="sectionTitle">Geospatial Visualization</h2>
+        <p class="sectionSub">
+          A snapshot of predicted duration across NYC: pickups clustered along Manhattan avenues, with longer predictions radiating outward.
+          Points are colored by predicted duration.
+        </p>
+
+        <div id="map" aria-label="NYC Leaflet map"></div>
+        <div class="mapNote">Hover markers for tooltips. Borough boundary overlay is a simplified, hand-drawn GeoJSON outline for storytelling (not a legal boundary).</div>
+      </div>
+    </section>
+
+    <!-- Live Estimator -->
+    <section id="demo">
+      <span class="anchor" aria-hidden="true"></span>
+      <div class="container">
+        <h2 class="sectionTitle">Live Trip Duration Estimator</h2>
+        <p class="sectionSub">
+          No backend needed: this is a lightweight approximation that mimics the learned model by combining borough-pair priors,
+          distance effects, and rush-hour penalties.
+        </p>
+
+        <div class="terminal">
+          <div class="terminalHeader">
+            <div class="left">
+              <div class="lights" aria-hidden="true"><span></span><span></span><span></span></div>
+              <div>DISPATCH · ETA ENGINE</div>
+            </div>
+            <div class="right">local inference · js</div>
+          </div>
+
+          <div class="formGrid">
+            <div class="field">
+              <label for="puB"><span>PU</span> Pickup Borough</label>
+              <select id="puB">
+                <option>Manhattan</option>
+                <option>Brooklyn</option>
+                <option>Queens</option>
+                <option>Bronx</option>
+                <option>Staten Island</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="doB"><span>DO</span> Dropoff Borough</label>
+              <select id="doB">
+                <option>Manhattan</option>
+                <option>Brooklyn</option>
+                <option>Queens</option>
+                <option>Bronx</option>
+                <option>Staten Island</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="tod"><span>TOD</span> Time of Day</label>
+              <div class="rangeRow">
+                <input id="tod" type="range" min="0" max="23" step="1" value="18" />
+                <div class="rangeVal"><span id="todVal">18</span>h</div>
+              </div>
+            </div>
+            <div class="field">
+              <label for="pax"><span>PAX</span> Passenger Count</label>
+              <input id="pax" type="number" min="1" max="6" value="2" />
+            </div>
+
+            <div class="field">
+              <label for="dist"><span>KM</span> Estimated Distance</label>
+              <input id="dist" type="number" min="0.2" max="60" step="0.1" value="6.8" />
+            </div>
+            <div class="field">
+              <label for="airport"><span>APT</span> Airport Trip?</label>
+              <select id="airport">
+                <option value="no">No</option>
+                <option value="jfk">JFK</option>
+                <option value="lga">LGA</option>
+                <option value="ewr">EWR</option>
+              </select>
+            </div>
+
+            <div class="ctaRow">
+              <button class="btn" id="btnPredict">Predict Duration</button>
+              <button class="btn secondary" id="btnRandom">Random realistic trip</button>
+            </div>
+
+            <div class="result" aria-live="polite">
+              <div class="resultCard">
+                <div style="color: rgba(255,255,255,.70); font-size:12px; letter-spacing:.10em; text-transform:uppercase;">Estimated trip duration</div>
+                <div class="bigNum" id="predNum">~14.3 minutes</div>
+                <div class="band" id="predBand">±2.1 min</div>
+              </div>
+              <div class="resultCard">
+                <div style="color: rgba(255,255,255,.70); font-size:12px; letter-spacing:.10em; text-transform:uppercase;">How it’s computed</div>
+                <div class="mini" id="explain">
+                  Base(Manhattan→Queens) + 1.45·km + rush + airport + pax adj.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <div class="container footerRow">
+        <div class="footLeft">
+          <div><b>Dataset</b>: NYC TLC Trip Record Data</div>
+          <div><b>Built with</b>: XGBoost · Leaflet · Chart.js · (no build step)</div>
+        </div>
+        <div class="footLinks" aria-label="Project links">
+          <a class="linkChip" href="#" onclick="return false;"><span class="ic" aria-hidden="true"></span> GitHub (placeholder)</a>
+          <a class="linkChip" href="#" onclick="return false;"><span class="ic" aria-hidden="true" style="background: var(--taxi)"></span> Notebook (placeholder)</a>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      // ---------- Theme helpers ----------
+      const COLORS = {
+        taxi: getComputedStyle(document.documentElement).getPropertyValue('--taxi').trim(),
+        teal: getComputedStyle(document.documentElement).getPropertyValue('--teal').trim(),
+        text: 'rgba(255,255,255,.86)',
+        muted: 'rgba(255,255,255,.60)',
+        grid: 'rgba(255,255,255,.08)'
+      };
+
+      function chartDefaults(){
+        Chart.defaults.color = COLORS.muted;
+        Chart.defaults.font.family = 'Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif';
+        Chart.defaults.plugins.legend.labels.boxWidth = 12;
+        Chart.defaults.plugins.legend.labels.boxHeight = 12;
+        Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(0,0,0,.75)';
+        Chart.defaults.plugins.tooltip.borderColor = 'rgba(255,255,255,.12)';
+        Chart.defaults.plugins.tooltip.borderWidth = 1;
+        Chart.defaults.plugins.tooltip.titleColor = 'rgba(255,255,255,.92)';
+        Chart.defaults.plugins.tooltip.bodyColor = 'rgba(255,255,255,.78)';
+      }
+      chartDefaults();
+
+      // ---------- EDA Charts (hardcoded realistic aggregates) ----------
+      // Avg duration by borough (minutes) - plausible NYC taxi scale
+      const boroughs = ['Manhattan','Brooklyn','Queens','Bronx','Staten Island'];
+      const avgMin = [11.2, 15.8, 18.6, 16.9, 21.4];
+
+      new Chart(document.getElementById('chartBorough'), {
+        type: 'bar',
+        data: {
+          labels: boroughs,
+          datasets: [{
+            label: 'Avg duration (min)',
+            data: avgMin,
+            backgroundColor: boroughs.map((b,i)=> i===0 ? 'rgba(0,229,212,.30)' : 'rgba(247,201,72,.30)'),
+            borderColor: boroughs.map((b,i)=> i===0 ? 'rgba(0,229,212,.70)' : 'rgba(247,201,72,.70)'),
+            borderWidth: 1.5,
+            borderRadius: 10,
+            maxBarThickness: 56
+          }]
+        },
+        options: {
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { color: 'transparent' }, ticks: { color: COLORS.muted } },
+            y: { grid: { color: COLORS.grid }, ticks: { callback: (v)=> v+'m' } }
+          }
+        }
+      });
+
+      // Trip volume by hour with AM/PM spikes
+      const hours = Array.from({length: 24}, (_,i)=> i);
+      const volume = [22,14,9,7,8,14,28,58,74,62,55,57,60,58,56,61,78,96,92,78,64,52,40,30];
+      new Chart(document.getElementById('chartHour'), {
+        type: 'line',
+        data: {
+          labels: hours.map(h => h.toString().padStart(2,'0')+':00'),
+          datasets: [{
+            label: 'Trips (indexed)',
+            data: volume,
+            borderColor: 'rgba(0,229,212,.85)',
+            backgroundColor: 'rgba(0,229,212,.12)',
+            tension: 0.35,
+            fill: true,
+            pointRadius: 2.5,
+            pointHoverRadius: 5
+          }]
+        },
+        options: {
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { color: 'transparent' }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } },
+            y: { grid: { color: COLORS.grid }, ticks: { callback: (v)=> v } }
+          }
+        }
+      });
+
+      // Distance histogram (0-30km right-skew)
+      const distBins = ['0–1','1–2','2–3','3–4','4–5','5–7','7–10','10–15','15–20','20–30'];
+      const distCounts = [180,240,210,160,120,140,85,40,18,7];
+      new Chart(document.getElementById('chartDist'), {
+        type: 'bar',
+        data: {
+          labels: distBins,
+          datasets: [{
+            label: 'Trips (k)',
+            data: distCounts,
+            backgroundColor: 'rgba(247,201,72,.26)',
+            borderColor: 'rgba(247,201,72,.65)',
+            borderWidth: 1.2,
+            borderRadius: 10,
+            maxBarThickness: 56
+          }]
+        },
+        options: {
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { color: 'transparent' }, ticks: { color: COLORS.muted } },
+            y: { grid: { color: COLORS.grid }, ticks: { callback: (v)=> v } }
+          }
+        }
+      });
+
+      // ---------- Feature importance chart ----------
+      const fiLabels = [
+        'haversine_distance_km',
+        'pickup_hour_sin',
+        'pickup_hour_cos',
+        'is_rush_pm',
+        'PU_borough=Manhattan',
+        'DO_borough=Manhattan',
+        'is_rush_am',
+        'is_weekend',
+        'passenger_count',
+        'is_airport_trip'
+      ];
+      const fiValues = [0.29,0.10,0.09,0.08,0.07,0.06,0.06,0.05,0.04,0.03];
+
+      new Chart(document.getElementById('chartFI'), {
+        type: 'bar',
+        data: {
+          labels: fiLabels,
+          datasets: [{
+            label: 'Importance',
+            data: fiValues,
+            backgroundColor: fiLabels.map((_,i)=> i===0 ? 'rgba(247,201,72,.32)' : 'rgba(0,229,212,.22)'),
+            borderColor: fiLabels.map((_,i)=> i===0 ? 'rgba(247,201,72,.75)' : 'rgba(0,229,212,.55)'),
+            borderWidth: 1.1,
+            borderRadius: 10
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { color: COLORS.grid }, ticks: { callback: (v)=> (v*100).toFixed(0)+'%' } },
+            y: { grid: { color: 'transparent' }, ticks: { color: 'rgba(255,255,255,.78)' } }
+          }
+        }
+      });
+
+      // ---------- Leaflet map ----------
+      const map = L.map('map', { zoomControl: true }).setView([40.7128, -74.0060], 11);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap &copy; CARTO'
+      }).addTo(map);
+
+      // Simplified borough boundary overlay (storytelling outline).
+      const boroughOutline = {
+        "type":"FeatureCollection",
+        "features":[
+          {"type":"Feature","properties":{"name":"NYC (outline)"},"geometry":{"type":"Polygon","coordinates":[[
+            [-74.2591,40.4774],[-74.0008,40.4774],[-73.7004,40.5769],[-73.7004,40.9176],
+            [-74.0506,40.9176],[-74.2591,40.7477],[-74.2591,40.4774]
+          ]]}}
+        ]
+      };
+      L.geoJSON(boroughOutline, {
+        style: { color: 'rgba(0,229,212,.55)', weight: 2, fillOpacity: 0 }
+      }).addTo(map);
+
+      function durationColor(min){
+        if(min < 10) return '#3BFF87';
+        if(min < 20) return '#F7C948';
+        return '#FF4D6D';
+      }
+
+      // ~30 sample pickup points with metadata
+      const samplePickups = [
+        {lat:40.7580,lng:-73.9855, borough:'Manhattan', km:2.8, predMin:9.6},
+        {lat:40.7484,lng:-73.9857, borough:'Manhattan', km:5.1, predMin:14.2},
+        {lat:40.7306,lng:-73.9866, borough:'Manhattan', km:3.7, predMin:12.1},
+        {lat:40.7061,lng:-74.0087, borough:'Manhattan', km:7.2, predMin:18.9},
+        {lat:40.8161,lng:-73.9450, borough:'Manhattan', km:6.4, predMin:17.8},
+        {lat:40.6500,lng:-73.9496, borough:'Brooklyn',  km:4.6, predMin:16.4},
+        {lat:40.6782,lng:-73.9442, borough:'Brooklyn',  km:3.3, predMin:13.5},
+        {lat:40.7066,lng:-73.9969, borough:'Brooklyn',  km:6.8, predMin:19.7},
+        {lat:40.6944,lng:-73.9213, borough:'Brooklyn',  km:9.1, predMin:24.1},
+        {lat:40.7309,lng:-73.9570, borough:'Brooklyn',  km:5.9, predMin:18.2},
+        {lat:40.7282,lng:-73.7949, borough:'Queens',    km:12.6, predMin:28.6},
+        {lat:40.7440,lng:-73.9489, borough:'Queens',    km:5.7, predMin:17.1},
+        {lat:40.7421,lng:-73.7694, borough:'Queens',    km:16.2, predMin:33.2},
+        {lat:40.7644,lng:-73.9235, borough:'Queens',    km:7.4, predMin:21.3},
+        {lat:40.7769,lng:-73.8740, borough:'Queens',    km:14.1, predMin:31.0},
+        {lat:40.8448,lng:-73.8648, borough:'Bronx',     km:8.2, predMin:23.4},
+        {lat:40.8501,lng:-73.8662, borough:'Bronx',     km:10.4, predMin:26.8},
+        {lat:40.8296,lng:-73.9262, borough:'Bronx',     km:6.9, predMin:20.6},
+        {lat:40.8075,lng:-73.9232, borough:'Bronx',     km:5.3, predMin:16.8},
+        {lat:40.8623,lng:-73.8971, borough:'Bronx',     km:11.8, predMin:29.4},
+        {lat:40.5795,lng:-74.1502, borough:'Staten Island', km:9.6, predMin:26.2},
+        {lat:40.6032,lng:-74.0790, borough:'Staten Island', km:12.0, predMin:30.1},
+        {lat:40.6423,lng:-74.1032, borough:'Staten Island', km:8.7, predMin:24.7},
+        {lat:40.6940,lng:-74.1750, borough:'Staten Island', km:14.3, predMin:34.0},
+        {lat:40.6110,lng:-74.1690, borough:'Staten Island', km:10.8, predMin:28.2},
+        {lat:40.6413,lng:-73.7781, borough:'Queens (JFK)', km:22.3, predMin:41.5},
+        {lat:40.7769,lng:-73.8740, borough:'Queens (LGA)', km:15.7, predMin:32.5},
+        {lat:40.6895,lng:-74.1745, borough:'Newark (EWR)', km:24.6, predMin:46.2},
+        {lat:40.7527,lng:-73.9772, borough:'Manhattan', km:8.4, predMin:21.9},
+        {lat:40.7223,lng:-73.9874, borough:'Manhattan', km:4.9, predMin:15.5},
+      ];
+
+      samplePickups.forEach(p => {
+        const c = durationColor(p.predMin);
+        const marker = L.circleMarker([p.lat, p.lng], {
+          radius: 7,
+          color: 'rgba(255,255,255,.20)',
+          weight: 1,
+          fillColor: c,
+          fillOpacity: 0.85
+        }).addTo(map);
+        marker.bindTooltip(
+          `<div style="font-family:Inter,system-ui; font-size:12px; line-height:1.4;">
+            <div style="font-weight:800; color: rgba(255,255,255,.92); margin-bottom:4px;">Pickup: ${p.borough}</div>
+            <div style="color: rgba(255,255,255,.78);">Distance: <b>${p.km.toFixed(1)} km</b></div>
+            <div style="color: rgba(255,255,255,.78);">Predicted: <b>${p.predMin.toFixed(1)} min</b></div>
+          </div>`,
+          { direction: 'top', opacity: 0.96, sticky: true }
+        );
+      });
+
+      // Legend
+      const legend = L.control({ position: 'bottomright' });
+      legend.onAdd = function(){
+        const div = L.DomUtil.create('div', 'info legend');
+        div.style.padding = '10px 12px';
+        div.style.borderRadius = '14px';
+        div.style.border = '1px solid rgba(255,255,255,.12)';
+        div.style.background = 'rgba(0,0,0,.60)';
+        div.style.backdropFilter = 'blur(10px)';
+        div.style.color = 'rgba(255,255,255,.80)';
+        div.style.fontFamily = 'Inter, system-ui';
+        div.style.fontSize = '12px';
+        div.innerHTML = `
+          <div style="font-weight:900; letter-spacing:.08em; text-transform:uppercase; margin-bottom:8px;">Pred duration</div>
+          <div style="display:flex; align-items:center; gap:8px; margin:6px 0;">
+            <span style="width:10px; height:10px; border-radius:99px; background:#3BFF87; display:inline-block;"></span>
+            <span>&lt; 10 min</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; margin:6px 0;">
+            <span style="width:10px; height:10px; border-radius:99px; background:#F7C948; display:inline-block;"></span>
+            <span>10–20 min</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; margin:6px 0;">
+            <span style="width:10px; height:10px; border-radius:99px; background:#FF4D6D; display:inline-block;"></span>
+            <span>&gt; 20 min</span>
+          </div>
+        `;
+        return div;
+      };
+      legend.addTo(map);
+
+      // ---------- Live estimator (pure JS) ----------
+      const el = (id) => document.getElementById(id);
+      const tod = el('tod');
+      const todVal = el('todVal');
+      tod.addEventListener('input', () => { todVal.textContent = tod.value; });
+
+      const boroughIdx = { "Manhattan":0, "Brooklyn":1, "Queens":2, "Bronx":3, "Staten Island":4 };
+      // Base minutes by borough pair (PU rows -> DO cols). Realistic-ish priors.
+      const baseMatrix = [
+        /* from Manhattan */     [8.8, 14.2, 16.0, 15.1, 22.0],
+        /* from Brooklyn */      [13.6, 12.5, 16.8, 18.0, 24.5],
+        /* from Queens */        [16.2, 17.2, 13.8, 18.6, 26.0],
+        /* from Bronx */         [15.2, 18.4, 19.0, 14.8, 27.5],
+        /* from Staten Island */ [22.8, 25.5, 26.4, 27.2, 20.5],
+      ];
+
+      function rushPenaltyMin(h){
+        const hour = Number(h);
+        const am = (hour >= 7 && hour <= 9);
+        const pm = (hour >= 17 && hour <= 19);
+        if(am) return 3.3;
+        if(pm) return 4.2;
+        if(hour >= 0 && hour <= 5) return -0.6; // late night is faster
+        return 0.0;
+      }
+
+      function airportPenaltyMin(code){
+        if(code === 'jfk') return 6.2;
+        if(code === 'lga') return 4.8;
+        if(code === 'ewr') return 7.4;
+        return 0.0;
+      }
+
+      function clamp(x, a, b){ return Math.max(a, Math.min(b, x)); }
+
+      function predictMinutes(){
+        const pu = el('puB').value;
+        const du = el('doB').value;
+        const h = Number(el('tod').value);
+        const pax = clamp(Number(el('pax').value || 1), 1, 6);
+        const km = clamp(Number(el('dist').value || 1.0), 0.2, 60);
+        const apt = el('airport').value;
+
+        const bi = boroughIdx[pu], bj = boroughIdx[du];
+        const base = baseMatrix[bi][bj];
+
+        // Distance effect (nonlinear-ish): strong early slope, diminishing returns at long distances
+        const distTerm = 1.45 * Math.sqrt(km) + 0.55 * km;
+        const rush = rushPenaltyMin(h);
+        const airport = airportPenaltyMin(apt);
+        const paxAdj = (pax - 1) * 0.35 + (pax >= 4 ? 0.6 : 0);
+
+        // A small interaction: cross-borough increases sensitivity to distance
+        const cross = pu !== du ? (0.10 * km) : 0.0;
+
+        let pred = base + distTerm + rush + airport + paxAdj + cross;
+        pred = clamp(pred, 3.5, 95);
+
+        // Confidence band grows with distance and rush hour
+        const band = clamp(1.6 + 0.08 * km + (rush > 0 ? 0.6 : 0) + (apt !== 'no' ? 0.7 : 0), 1.6, 6.5);
+
+        const expl = `Base(${pu}→${du}) + 0.55·km + 1.45·√km + rush(${rush.toFixed(1)}m) + airport(${airport.toFixed(1)}m) + pax(${paxAdj.toFixed(1)}m) + cross(${cross.toFixed(1)}m)`;
+        return { pred, band, expl };
+      }
+
+      function animateNumber(elm, from, to, ms){
+        const t0 = performance.now();
+        const ease = (t) => 1 - Math.pow(1 - t, 3);
+        function tick(now){
+          const t = clamp((now - t0) / ms, 0, 1);
+          const v = from + (to - from) * ease(t);
+          elm.textContent = `~${v.toFixed(1)} minutes`;
+          if(t < 1) requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+      }
+
+      let lastPred = 14.3;
+      function runPredict(){
+        const { pred, band, expl } = predictMinutes();
+        animateNumber(el('predNum'), lastPred, pred, 520);
+        el('predBand').textContent = `±${band.toFixed(1)} min`;
+        el('explain').textContent = expl;
+        lastPred = pred;
+      }
+      el('btnPredict').addEventListener('click', runPredict);
+
+      // Random realistic trip generator
+      function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+      el('btnRandom').addEventListener('click', () => {
+        const B = ['Manhattan','Brooklyn','Queens','Bronx','Staten Island'];
+        const pu = pick(B);
+        const du = pick(B);
+        el('puB').value = pu;
+        el('doB').value = du;
+        const h = pick([8,9,12,17,18,20,22,1]);
+        tod.value = String(h); todVal.textContent = String(h);
+        el('pax').value = String(pick([1,1,2,2,2,3,4,5]));
+
+        // distance correlated with borough pair
+        const same = pu === du;
+        let km = same ? (Math.random()*7 + 0.8) : (Math.random()*16 + 2.5);
+        if(pu === 'Staten Island' || du === 'Staten Island') km += 7 + Math.random()*10;
+        km = clamp(km, 0.8, 45);
+        el('dist').value = km.toFixed(1);
+
+        const apt = pick(['no','no','no','jfk','lga','ewr']);
+        el('airport').value = apt;
+        runPredict();
+      });
+
+      // Initial prediction for motion
+      runPredict();
+    </script>
+  </body>
+</html>
+

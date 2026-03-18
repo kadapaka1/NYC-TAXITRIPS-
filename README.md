@@ -1,4 +1,4 @@
-# 🗽 NYC Taxi Trip Duration Predictor
+#  NYC Taxi Trip Duration Predictor
 ### Full-Stack Geospatial ML — Regression Pipeline · Live Demo · Interactive Maps
 
 ![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python&logoColor=white)
